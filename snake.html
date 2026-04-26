@@ -109,6 +109,11 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
   .lb-card{min-width:unset}
   .game-title{font-size:36px;letter-spacing:8px}
 }
+/* ── CHEAT CODE ── */
+.cheat-wrap{display:flex;gap:6px}
+.cheat-btn{padding:8px 11px;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#8b949e;font-size:14px;font-family:inherit;cursor:pointer;transition:border-color .15s,color .15s;flex-shrink:0}
+.cheat-btn:hover{border-color:#3fb950;color:#3fb950}
+#cheat-msg{font-size:11px;min-height:15px;margin-top:4px}
 /* ── CONTROLS SETTINGS ── */
 .ctrl-size-wrap{margin-top:6px;display:none}
 .ctrl-size-wrap.visible{display:block}
@@ -177,6 +182,14 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
           <div style="color:#3fb950">🦠 Germ −10pts &amp; segs</div>
           <div style="font-size:10px;color:#6e7681">Bite tail → breaks off</div>
         </div>
+      </div>
+      <div>
+        <div class="field-label">Cheat Code</div>
+        <div class="cheat-wrap">
+          <input id="input-cheat" class="text-input" type="text" placeholder="Enter code…" autocomplete="off" spellcheck="false">
+          <button id="btn-cheat" class="cheat-btn">→</button>
+        </div>
+        <div id="cheat-msg"></div>
       </div>
       <button id="btn-start">▶ START</button>
     </div>
@@ -892,6 +905,51 @@ document.getElementById('btn-win-save').addEventListener('click',()=>{
 document.getElementById('btn-play-again').addEventListener('click', transitionToMenu);
 
 document.getElementById('input-name').addEventListener('input', renderColorPicker);
+
+// ── CHEAT CODES ────────────────────────────────────────────────────────────
+const CHEAT_CODES = {
+  'sapsnake':  'rainbow',
+  'SNAIIK':    'red-black',
+  'sn4kee':    'silver',
+  'codesnAKe': 'bronze',
+};
+
+function applyCheatCode() {
+  const inp   = document.getElementById('input-cheat');
+  const code  = inp.value;
+  const msg   = document.getElementById('cheat-msg');
+  inp.value   = '';
+
+  const colorId = CHEAT_CODES[code];
+  if (!colorId) {
+    msg.style.color = '#cf222e';
+    msg.textContent = '✗ Invalid code';
+    setTimeout(() => { msg.textContent = ''; }, 1500);
+    return;
+  }
+
+  const name = document.getElementById('input-name').value.trim();
+  const ul   = getUnlocked(name);
+  if (ul.has(colorId)) {
+    msg.style.color = '#8b949e';
+    msg.textContent = 'Already unlocked';
+    setTimeout(() => { msg.textContent = ''; }, 1500);
+    return;
+  }
+
+  ul.add(colorId);
+  saveUnlocked(ul, name);
+  const label = (COLOR_DEFS.find(c => c.id === colorId)||{}).label || colorId;
+  msg.style.color = '#3fb950';
+  msg.textContent = '🔓 ' + label + ' unlocked!';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+  renderColorPicker();
+}
+
+document.getElementById('btn-cheat').addEventListener('click', applyCheatCode);
+document.getElementById('input-cheat').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); applyCheatCode(); }
+});
 
 document.getElementById('ctrl-type-picker').addEventListener('click', e => {
   const b = e.target.closest('.opt-btn'); if (!b) return;
