@@ -68,7 +68,13 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
 
 /* ══ GAME (white) ══ */
 #screen-game{background:#fff;flex-direction:column;align-items:center;gap:8px;padding:14px;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+#screen-game.dpad-active{flex-direction:column}
+#game-area{display:flex;flex-direction:column;align-items:center;gap:8px}
 #hud{display:flex;justify-content:space-between;align-items:center;width:640px;max-width:100%;padding:3px 0;flex-wrap:wrap;gap:4px}
+@media(orientation:landscape){
+  #screen-game.dpad-active{flex-direction:row;align-items:center;gap:16px;padding:8px 14px}
+  #screen-game.dpad-active #dpad{padding:0}
+}
 #score-display{font-size:15px;color:#24292f}
 #score-display .val{font-weight:700;color:#1a7f37}
 #stopwatch{font-size:15px;color:#24292f;font-weight:600;letter-spacing:1px;min-width:70px;text-align:center}
@@ -183,15 +189,17 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
 
 <!-- ══ GAME ══ -->
 <div id="screen-game" class="screen">
-  <div id="hud">
-    <div id="score-display">Score: <span class="val" id="score-val">0</span> / <span id="target-val">100</span></div>
-    <div id="stopwatch">⏱ 00:00</div>
-    <div class="hud-btns">
-      <button id="btn-pause" class="game-btn">⏸ PAUSE</button>
-      <button id="btn-reset" class="game-btn">↩ RESET</button>
+  <div id="game-area">
+    <div id="hud">
+      <div id="score-display">Score: <span class="val" id="score-val">0</span> / <span id="target-val">100</span></div>
+      <div id="stopwatch">⏱ 00:00</div>
+      <div class="hud-btns">
+        <button id="btn-pause" class="game-btn">⏸ PAUSE</button>
+        <button id="btn-reset" class="game-btn">↩ RESET</button>
+      </div>
     </div>
+    <canvas id="canvas" width="640" height="640"></canvas>
   </div>
-  <canvas id="canvas" width="640" height="640"></canvas>
   <div id="dpad">
     <div class="dpad-row">
       <div class="dpad-spacer"></div>
@@ -285,19 +293,22 @@ const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
 
 function fitCanvas() {
-  const vw    = window.visualViewport ? window.visualViewport.width  : window.innerWidth;
-  const vh    = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  const ctrl  = getControls();
-  const dpadH = ctrl.type !== 'swipe' ? ({sm:156,md:196,lg:236}[ctrl.size]||196) : 0;
-  const size  = Math.max(100, Math.min(vw - 28, vh - 90 - dpadH, 640));
+  const vw         = window.visualViewport ? window.visualViewport.width  : window.innerWidth;
+  const vh         = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const ctrl       = getControls();
+  const dpadPx     = ctrl.type !== 'swipe' ? ({sm:156,md:196,lg:236}[ctrl.size]||196) : 0;
+  const isLandscape = vw > vh;
+  const reserveW   = (isLandscape && dpadPx) ? dpadPx + 28 : 0;
+  const reserveH   = (!isLandscape) ? dpadPx : 0;
+  const size = Math.max(100, Math.min(vw - 28 - reserveW, vh - 90 - reserveH, 640));
   canvas.style.width  = size + 'px';
   canvas.style.height = size + 'px';
   const hud = document.getElementById('hud');
   if (hud) hud.style.width = size + 'px';
 }
 fitCanvas();
-window.addEventListener('resize', fitCanvas);
-window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
+window.addEventListener('resize', () => applyControls());
+window.addEventListener('orientationchange', () => setTimeout(applyControls, 200));
 
 // ── ONLINE LEADERBOARD (Supabase) ──────────────────────────────────────────
 // Fill in after creating a free project at supabase.com
@@ -813,8 +824,9 @@ function applyControls() {
   const sg = document.getElementById('screen-game');
   sg.classList.remove('ctrl-sm','ctrl-md','ctrl-lg');
   sg.classList.add('ctrl-' + size);
-  const dpad = document.getElementById('dpad');
-  dpad.classList.toggle('visible', type !== 'swipe');
+  const dpadVisible = type !== 'swipe';
+  document.getElementById('dpad').classList.toggle('visible', dpadVisible);
+  sg.classList.toggle('dpad-active', dpadVisible);
   fitCanvas();
   // Sync menu buttons
   document.querySelectorAll('#ctrl-type-picker .opt-btn').forEach(b =>
