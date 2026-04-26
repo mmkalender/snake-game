@@ -312,8 +312,8 @@ window.addEventListener('orientationchange', () => setTimeout(applyControls, 200
 
 // ── ONLINE LEADERBOARD (Supabase) ──────────────────────────────────────────
 // Fill in after creating a free project at supabase.com
-const SUPA_URL = ''; // e.g. 'https://xxxx.supabase.co'
-const SUPA_KEY = ''; // anon/public key from Settings → API
+const SUPA_URL = 'https://kbkdlizwboksbddfkfhx.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtia2RsaXp3Ym9rc2JkZGZrZmh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxOTYyNjAsImV4cCI6MjA5Mjc3MjI2MH0.MLyo6Znxziu2Trnk6PSa98Di1N8-aTSlJIEGz1gMV2E';
 const ONLINE   = !!(SUPA_URL && SUPA_KEY);
 
 async function fetchLBOnline(diff) {
