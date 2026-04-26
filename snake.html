@@ -103,6 +103,19 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
   .lb-card{min-width:unset}
   .game-title{font-size:36px;letter-spacing:8px}
 }
+/* ── CONTROLS SETTINGS ── */
+.ctrl-size-wrap{margin-top:6px;display:none}
+.ctrl-size-wrap.visible{display:block}
+/* ── D-PAD ── */
+#dpad{display:none;flex-direction:column;align-items:center;gap:4px;padding:10px 0 4px}
+#dpad.visible{display:flex}
+.dpad-row{display:flex;gap:4px}
+.dpad-spacer{width:var(--dbtn);height:var(--dbtn)}
+.dpad-btn{width:var(--dbtn);height:var(--dbtn);background:#1c1c1e;border:2px solid #3a3a3c;border-radius:14px;color:#fff;font-size:calc(var(--dbtn)*0.42);cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:none;transition:background .08s,transform .08s}
+.dpad-btn:active{background:#3a3a3c;transform:scale(.92)}
+#screen-game.ctrl-sm{--dbtn:44px}
+#screen-game.ctrl-md{--dbtn:58px}
+#screen-game.ctrl-lg{--dbtn:72px}
 </style>
 </head>
 <body>
@@ -136,6 +149,21 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
         </div>
       </div>
       <div>
+        <div class="field-label">Controls</div>
+        <div class="opt-row" id="ctrl-type-picker">
+          <button class="opt-btn selected" data-ctrl-type="swipe">Swipe</button>
+          <button class="opt-btn" data-ctrl-type="dpad">D-Pad</button>
+          <button class="opt-btn" data-ctrl-type="both">Both</button>
+        </div>
+        <div class="ctrl-size-wrap" id="ctrl-size-wrap">
+          <div class="opt-row" id="ctrl-size-picker">
+            <button class="opt-btn" data-ctrl-size="sm">S</button>
+            <button class="opt-btn selected" data-ctrl-size="md">M</button>
+            <button class="opt-btn" data-ctrl-size="lg">L</button>
+          </div>
+        </div>
+      </div>
+      <div>
         <div class="field-label">Items</div>
         <div class="legend">
           <div>🍎 Apple +1pt</div><div>🍌 Banana +3pts</div>
@@ -164,6 +192,23 @@ body{font-family:'Courier New',Courier,monospace;min-height:100vh;overscroll-beh
     </div>
   </div>
   <canvas id="canvas" width="640" height="640"></canvas>
+  <div id="dpad">
+    <div class="dpad-row">
+      <div class="dpad-spacer"></div>
+      <button class="dpad-btn" data-dir="up">▲</button>
+      <div class="dpad-spacer"></div>
+    </div>
+    <div class="dpad-row">
+      <button class="dpad-btn" data-dir="left">◀</button>
+      <div class="dpad-spacer"></div>
+      <button class="dpad-btn" data-dir="right">▶</button>
+    </div>
+    <div class="dpad-row">
+      <div class="dpad-spacer"></div>
+      <button class="dpad-btn" data-dir="down">▼</button>
+      <div class="dpad-spacer"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ══ WIN ══ -->
@@ -240,9 +285,11 @@ const canvas = document.getElementById('canvas');
 const ctx    = canvas.getContext('2d');
 
 function fitCanvas() {
-  const vw = window.visualViewport ? window.visualViewport.width  : window.innerWidth;
-  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-  const size = Math.max(100, Math.min(vw - 28, vh - 90, 640));
+  const vw    = window.visualViewport ? window.visualViewport.width  : window.innerWidth;
+  const vh    = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const ctrl  = getControls();
+  const dpadH = ctrl.type !== 'swipe' ? ({sm:156,md:196,lg:236}[ctrl.size]||196) : 0;
+  const size  = Math.max(100, Math.min(vw - 28, vh - 90 - dpadH, 640));
   canvas.style.width  = size + 'px';
   canvas.style.height = size + 'px';
   const hud = document.getElementById('hud');
@@ -252,10 +299,49 @@ fitCanvas();
 window.addEventListener('resize', fitCanvas);
 window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 200));
 
+// ── ONLINE LEADERBOARD (Supabase) ──────────────────────────────────────────
+// Fill in after creating a free project at supabase.com
+const SUPA_URL = ''; // e.g. 'https://xxxx.supabase.co'
+const SUPA_KEY = ''; // anon/public key from Settings → API
+const ONLINE   = !!(SUPA_URL && SUPA_KEY);
+
+async function fetchLBOnline(diff) {
+  if (!ONLINE) return null;
+  try {
+    const r = await fetch(
+      `${SUPA_URL}/rest/v1/scores?difficulty=eq.${diff}&order=score.desc&limit=10&select=name,score,time_ms,date_str`,
+      { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } }
+    );
+    if (!r.ok) return null;
+    return (await r.json()).map(e => ({ name:e.name, score:e.score, time:e.time_ms, date:e.date_str }));
+  } catch { return null; }
+}
+
+async function pushScoreOnline(name, sc, ms, diff, dateStr) {
+  if (!ONLINE) return;
+  try {
+    await fetch(`${SUPA_URL}/rest/v1/scores`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
+        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ name, score: sc, time_ms: ms, difficulty: diff, date_str: dateStr }),
+    });
+  } catch { /* silently fail; localStorage fallback remains */ }
+}
+
 // ── LOCAL STORAGE ──────────────────────────────────────────────────────────
 const LS_LB_PREFIX  = 'snake_lb_v3_';
 const LS_UNL_PREFIX = 'snake_unlocked_v3_';
+const LS_CTRL       = 'snake_controls_v1';
 const TICK_TO_DIFF  = { 180: 'easy', 110: 'normal', 65: 'hard' };
+
+function getControls() {
+  try { return { type:'swipe', size:'md', ...JSON.parse(localStorage.getItem(LS_CTRL)||'{}') }; }
+  catch { return { type:'swipe', size:'md' }; }
+}
+function saveControls(c) { localStorage.setItem(LS_CTRL, JSON.stringify(c)); }
 
 function getLB(diff)    { try { return JSON.parse(localStorage.getItem(LS_LB_PREFIX+(diff||currentDifficulty))) || []; } catch { return []; } }
 function saveLB(l,diff) { localStorage.setItem(LS_LB_PREFIX+(diff||currentDifficulty), JSON.stringify(l)); }
@@ -269,6 +355,7 @@ function addLB(name, sc, ms) {
   lb.sort((a,b) => b.score - a.score);
   lb.splice(10);
   saveLB(lb, currentDifficulty);
+  pushScoreOnline(n, sc, ms, currentDifficulty, date);
 }
 
 function getUnlocked(name) {
@@ -376,7 +463,7 @@ function initGame() {
   applyBtnColors();
   document.getElementById('screen-game').style.background = softColor();
 
-  fitCanvas();
+  applyControls();
   showScreen('screen-game');
   gameState = 'PLAYING';
   if (animFrame) cancelAnimationFrame(animFrame);
@@ -647,8 +734,7 @@ function swatchStyle(def) {
 }
 
 // ── LEADERBOARD ────────────────────────────────────────────────────────────
-function renderLB() {
-  const lb = getLB(currentDifficulty);
+function renderLBTable(lb) {
   const el = document.getElementById('lb-content');
   document.querySelector('.lb-title').textContent = 'LEADERBOARD — ' + currentDifficulty.toUpperCase();
   if (!lb.length) { el.innerHTML='<div class="lb-empty">No scores yet.<br>Be the first to win!</div>'; return; }
@@ -659,6 +745,13 @@ function renderLB() {
   });
   h+='</tbody></table>';
   el.innerHTML=h;
+}
+
+async function renderLB() {
+  document.querySelector('.lb-title').textContent = 'LEADERBOARD — ' + currentDifficulty.toUpperCase();
+  if (ONLINE) document.getElementById('lb-content').innerHTML = '<div class="lb-empty">Loading…</div>';
+  const onlineLB = await fetchLBOnline(currentDifficulty);
+  renderLBTable(onlineLB || getLB(currentDifficulty));
 }
 
 // ── INPUT ──────────────────────────────────────────────────────────────────
@@ -692,6 +785,7 @@ canvas.addEventListener('touchend', e => {
     if (gameState === 'PLAYING' || gameState === 'PAUSED') togglePause();
     return;
   }
+  if (getControls().type === 'dpad') return; // swipe disabled in D-Pad-only mode
   if (gameState !== 'PLAYING') return;
   const nd = ax > ay ? (dx > 0 ? {x:1,y:0} : {x:-1,y:0}) : (dy > 0 ? {x:0,y:1} : {x:0,y:-1});
   const c = snake.dir;
@@ -701,6 +795,35 @@ canvas.addEventListener('touchend', e => {
 document.addEventListener('touchmove', e => {
   if (gameState === 'PLAYING' || gameState === 'PAUSED') e.preventDefault();
 }, { passive: false });
+
+// ── D-PAD CONTROLS ────────────────────────────────────────────────────────
+const DPAD_MAP = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0} };
+document.getElementById('dpad').addEventListener('pointerdown', e => {
+  const btn = e.target.closest('.dpad-btn'); if (!btn) return;
+  if (gameState !== 'PLAYING') return;
+  const nd = DPAD_MAP[btn.dataset.dir]; if (!nd) return;
+  const c = snake.dir;
+  if (nd.x !== -c.x || nd.y !== -c.y) snake.nextDir = nd;
+  e.preventDefault();
+}, { passive: false });
+
+// ── CONTROLS APPLY ────────────────────────────────────────────────────────
+function applyControls() {
+  const { type, size } = getControls();
+  const sg = document.getElementById('screen-game');
+  sg.classList.remove('ctrl-sm','ctrl-md','ctrl-lg');
+  sg.classList.add('ctrl-' + size);
+  const dpad = document.getElementById('dpad');
+  dpad.classList.toggle('visible', type !== 'swipe');
+  fitCanvas();
+  // Sync menu buttons
+  document.querySelectorAll('#ctrl-type-picker .opt-btn').forEach(b =>
+    b.classList.toggle('selected', b.dataset.ctrlType === type));
+  const szWrap = document.getElementById('ctrl-size-wrap');
+  if (szWrap) szWrap.classList.toggle('visible', type !== 'swipe');
+  document.querySelectorAll('#ctrl-size-picker .opt-btn').forEach(b =>
+    b.classList.toggle('selected', b.dataset.ctrlSize === size));
+}
 
 // ── EVENT LISTENERS ────────────────────────────────────────────────────────
 document.getElementById('btn-start').addEventListener('click',()=>{
@@ -758,9 +881,21 @@ document.getElementById('btn-play-again').addEventListener('click', transitionTo
 
 document.getElementById('input-name').addEventListener('input', renderColorPicker);
 
+document.getElementById('ctrl-type-picker').addEventListener('click', e => {
+  const b = e.target.closest('.opt-btn'); if (!b) return;
+  const ctrl = getControls(); ctrl.type = b.dataset.ctrlType;
+  saveControls(ctrl); applyControls();
+});
+document.getElementById('ctrl-size-picker').addEventListener('click', e => {
+  const b = e.target.closest('.opt-btn'); if (!b) return;
+  const ctrl = getControls(); ctrl.size = b.dataset.ctrlSize;
+  saveControls(ctrl); applyControls();
+});
+
 // ── BOOT ──────────────────────────────────────────────────────────────────
 renderColorPicker();
 renderLB();
+applyControls();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js'));
