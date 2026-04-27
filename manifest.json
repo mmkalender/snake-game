@@ -2,7 +2,7 @@
   "name": "Snake Game",
   "short_name": "Snake",
   "description": "Classic snake game with fruits, germs, unlockable colours and leaderboards.",
-  "start_url": "snake.html",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1117",
   "theme_color": "#0d1117",

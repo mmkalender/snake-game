@@ -2,7 +2,8 @@
 
 const CACHE = 'snake-v1';
 const FILES = [
-  'snake.html',
+  '/',
+  '/index.html',
   'manifest.json',
   'icons/icon-180.png',
   'icons/icon-192.png',
